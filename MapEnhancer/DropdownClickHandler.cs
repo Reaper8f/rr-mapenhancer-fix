@@ -9,8 +9,8 @@ namespace MapEnhancer
 {
 	internal class DropdownClickHandler : MonoBehaviour, IPointerDownHandler
 	{
-		public List<Car> cars;
-		private TMP_Dropdown dropdown;
+		public List<Car> cars = new List<Car>();
+		private TMP_Dropdown? dropdown;
 
 		public void Awake()
 		{
@@ -19,7 +19,7 @@ namespace MapEnhancer
 
 		public void OnPointerDown(PointerEventData eventData)
 		{
-			if (dropdown.IsExpanded) return;
+			if (dropdown == null || dropdown.IsExpanded) return;
 			dropdown.ClearOptions();
 			cars = TrainController.Shared.Cars.Where((Car car) => car.IsLocomotive).OrderBy(car => car.Ident.RoadNumber.Length).ThenBy(car => car.Ident.RoadNumber).ToList();
 			dropdown.AddOptions(cars.Select(car =>

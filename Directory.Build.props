@@ -1,0 +1,1 @@
+<Project><PropertyGroup><EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries><EnableSourceLink>false</EnableSourceLink><EmbedUntrackedSources>false</EmbedUntrackedSources><IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion><Deterministic>true</Deterministic></PropertyGroup></Project>

@@ -1,6 +1,6 @@
 using Game.Messages;
 using Game.State;
-using MapEnhancer.UMM;
+using MapEnhancer.Native;
 using Track;
 using UI;
 using UI.ContextMenu;
@@ -13,22 +13,27 @@ namespace MapEnhancer
 {
 	public class JunctionMarker : MonoBehaviour
 	{
-		public static Material matJunctionGreen;
-		public static Material matJunctionRed;
+		public static Material? matJunctionGreen;
+		public static Material? matJunctionRed;
 
-		public static JunctionMarker junctionMarkerPrefabL;
-		public static JunctionMarker junctionMarkerPrefabR;
+		public static JunctionMarker? junctionMarkerPrefabL;
+		public static JunctionMarker? junctionMarkerPrefabR;
 
 		//public MeshRenderer left;
 		//public MeshRenderer right;
-		public Image left;
-		public Image right;
+		public Image? left;
+		public Image? right;
 		public int id { get; private set; }
-		public TrackNode junction;
+		public TrackNode? junction;
 		private float lastClick;
 		
 		public void Start()
 		{
+            if (junction == null || left == null || right == null)
+            {
+                enabled = false;
+                return;
+            }
 			SetColors();
 			foreach (var icon in GetComponentsInChildren<MapIcon>())
 			{
@@ -39,6 +44,7 @@ namespace MapEnhancer
 
 		void OnMapMarkerPressed()
 		{
+            if (junction == null) return;
 			if (Mouse.current.rightButton.wasReleasedThisFrame)
 			{
 				RequestSetSwitchUnlocked toggleLocked = new RequestSetSwitchUnlocked(junction.id, !junction.IsCTCSwitchUnlocked);
@@ -74,6 +80,7 @@ namespace MapEnhancer
 
 		void SetColors()
 		{
+            if (junction == null || left == null || right == null) return;
 			if (!junction.isThrown)
 			{
 				left.color = new Color(0f, 1f, 0f, 0.8f);
@@ -92,7 +99,7 @@ namespace MapEnhancer
 			{
 				icon.OnClick -= OnMapMarkerPressed;
 			}
-			junction.OnDidChangeThrown -= SetColors;
+			if (junction != null) junction.OnDidChangeThrown -= SetColors;
 		}
 
 		public static void CreatePrefab()

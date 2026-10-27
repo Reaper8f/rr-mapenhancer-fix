@@ -1,104 +1,59 @@
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<AssemblyName>MapEnhancer</AssemblyName>
-		<TargetFramework>net48</TargetFramework>
-		<LangVersion>latest</LangVersion>
-		<Nullable>enable</Nullable>
-		<WarningsAsErrors>CS8600;CS8602;CS8603</WarningsAsErrors>
-	</PropertyGroup>
-
-	<!-- Krafs Publicizer -->
-	<ItemGroup>
-		<Publicize Include="Assembly-CSharp" IncludeCompilerGeneratedMembers="false" />
-	</ItemGroup>
-
-	<!-- Railroader -->
-	<ItemGroup>
-		<Reference Include="Assembly-CSharp">
-			<HintPath>$(RrManagedDir)\Assembly-CSharp.dll</HintPath>
-		</Reference>
-		<Reference Include="Core">
-			<HintPath>$(RrManagedDir)\Core.dll</HintPath>
-		</Reference>
-		<Reference Include="Definition">
-			<HintPath>$(RrManagedDir)\Definition.dll</HintPath>
-		</Reference>
-		<Reference Include="Map.Runtime">
-			<HintPath>$(RrManagedDir)\Map.Runtime.dll</HintPath>
-		</Reference>
-		<Reference Include="KeyValue.Runtime">
-			<HintPath>$(RrManagedDir)\KeyValue.Runtime.dll</HintPath>
-		</Reference>
-	</ItemGroup>
-
-	<!-- Mod Loader -->
-	<ItemGroup>
-		<PackageReference Include="Krafs.Publicizer" Version="2.2.1" />
-		<PackageReference Include="UnityModManager" Version="0.27.5" PrivateAssets="all" />
-	</ItemGroup>
-
-	<!-- Null Checking -->
-	<ItemGroup>
-		<PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-		<PackageReference Include="Nullable" Version="1.3.1" PrivateAssets="all" />
-	</ItemGroup>
-
-	<!-- Unity -->
-	<ItemGroup>
-		<Reference Include="UnityEngine">
-			<HintPath>$(RrManagedDir)\UnityEngine.dll</HintPath>
-		</Reference>
-		<Reference Include="UnityEngine.CoreModule">
-			<HintPath>$(RrManagedDir)\UnityEngine.CoreModule.dll</HintPath>
-		</Reference>
-		<Reference Include="UnityEngine.TextRenderingModule">
-			<HintPath>$(RrManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath>
-		</Reference>
-		<Reference Include="UnityEngine.IMGUIModule">
-			<HintPath>$(RrManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
-		</Reference>
-		<Reference Include="UnityEngine.InputModule">
-			<HintPath>$(RrManagedDir)\UnityEngine.InputModule.dll</HintPath>
-		</Reference>
-		<Reference Include="UnityEngine.PhysicsModule">
-			<HintPath>$(RrManagedDir)\UnityEngine.PhysicsModule.dll</HintPath>
-		</Reference>
-		<Reference Include="UnityEngine.UI">
-			<HintPath>$(RrManagedDir)\UnityEngine.UI.dll</HintPath>
-		</Reference>
-		<Reference Include="UnityEngine.UIModule">
-			<HintPath>$(RrManagedDir)\UnityEngine.UIModule.dll</HintPath>
-		</Reference>
-		<Reference Include="UnityEngine.ImageConversionModule">
-			<HintPath>$(RrManagedDir)\UnityEngine.ImageConversionModule.dll</HintPath>
-		</Reference>
-		<Reference Include="UnityEngine.InputLegacyModule">
-			<HintPath>$(RrManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath>
-		</Reference>
-		<Reference Include="Unity.InputSystem">
-			<HintPath>$(RrManagedDir)\Unity.InputSystem.dll</HintPath>
-		</Reference>
-		<Reference Include="Unity.RenderPipelines.Universal.Runtime">
-			<HintPath>$(RrManagedDir)\Unity.RenderPipelines.Universal.Runtime.dll</HintPath>
-		</Reference>
-		<Reference Include="Unity.TextMeshPro">
-			<HintPath>$(RrManagedDir)\Unity.TextMeshPro.dll</HintPath>
-		</Reference>
-	</ItemGroup>
-	
-	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-		<!-- Copy to build folder -->
-		<Copy SourceFiles="$(TargetPath)" DestinationFolder="../build/" />
-		<Copy SourceFiles="$(ProjectDir)\arrow.png" DestinationFolder="../build/" />
-		<Copy SourceFiles="$(ProjectDir)\traincar.png" DestinationFolder="../build/" />
-		<Copy SourceFiles="$(ProjectDir)\flare.png" DestinationFolder="../build/" />
-		<Copy SourceFiles="$(ProjectDir)\level-crossing.png" DestinationFolder="../build/" />
-
-		<!-- Package after Release build -->
-		<Exec Condition="'$(ConfigurationName)' == 'Release' And '$(OS)' == 'Windows_NT'" Command="powershell -executionpolicy bypass -Command &quot;(../package.ps1)&quot;" />
-		<Exec Condition="'$(ConfigurationName)' == 'Release' And '$(OS)' != 'Windows_NT'" Command="pwsh -Command &quot;(../package.ps1)&quot;" />
-		<!-- Copy to game install folder -->
-		<Exec Condition="Exists('$(RrInstallDir)') And '$(OS)' == 'Windows_NT'" Command="powershell -executionpolicy bypass -Command &quot;(../package.ps1 -NoArchive -OutputDirectory '$(RrInstallDir)\Mods')&quot;" />
-		<Exec Condition="Exists('$(RrInstallDir)') And '$(OS)' != 'Windows_NT'" Command="pwsh  -Command &quot;(../package.ps1 -NoArchive -OutputDirectory '$(RrInstallDir)/Mods')&quot;" />
-	</Target>
-</Project>
+  <PropertyGroup>
+    <AssemblyName>MapEnhancer</AssemblyName>
+    <Version>2.0.1</Version>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NoStdLib>true</NoStdLib>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <OutputPath>$(MSBuildThisFileDirectory)..\artifacts\bin\$(Configuration)\</OutputPath>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildProjectDirectory)=/_/MapEnhancer</PathMap>
+  </PropertyGroup>
+  <ItemGroup>
+    <Publicize Include="Railroader" IncludeCompilerGeneratedMembers="false" />
+    <PackageReference Include="Krafs.Publicizer" Version="2.2.1" PrivateAssets="all" />
+    <PackageReference Include="Lib.Harmony" Version="2.3.6" />
+    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+    <PackageReference Include="Nullable" Version="1.3.1" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="mscorlib"><HintPath>$(RrManagedDir)\mscorlib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="System"><HintPath>$(RrManagedDir)\System.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="System.Core"><HintPath>$(RrManagedDir)\System.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="netstandard"><HintPath>$(RrManagedDir)\netstandard.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Railroader"><HintPath>$(RrManagedDir)\Railroader.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Railroader.Modding"><HintPath>$(RrManagedDir)\Railroader.Modding.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Core"><HintPath>$(RrManagedDir)\Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Map.Runtime"><HintPath>$(RrManagedDir)\Map.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="KeyValue.Runtime"><HintPath>$(RrManagedDir)\KeyValue.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(RrManagedDir)\Newtonsoft.Json.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(RrManagedDir)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(RrManagedDir)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(RrManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(RrManagedDir)\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputModule"><HintPath>$(RrManagedDir)\UnityEngine.InputModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(RrManagedDir)\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(RrManagedDir)\UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(RrManagedDir)\UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ImageConversionModule"><HintPath>$(RrManagedDir)\UnityEngine.ImageConversionModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(RrManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.InputSystem"><HintPath>$(RrManagedDir)\Unity.InputSystem.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.RenderPipelines.Universal.Runtime"><HintPath>$(RrManagedDir)\Unity.RenderPipelines.Universal.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.TextMeshPro"><HintPath>$(RrManagedDir)\Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="arrow.png;traincar.png;flare.png;level-crossing.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\info.json" Link="Info.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\spawn-points.json" Link="spawn-points.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <Target Name="RequireGameReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(RrManagedDir)' == '' Or !Exists('$(RrManagedDir)\Railroader.dll')" Text="Set RrManagedDir to the Managed directory of a compatible Railroader installation." />
+  </Target>
+<ItemGroup><None Include="..\THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" /></ItemGroup></Project>

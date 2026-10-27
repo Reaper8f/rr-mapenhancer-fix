@@ -1,74 +1,43 @@
-using Helpers;
-using Helpers.Culling;
-using System;
 using UI.Map;
 using UnityEngine;
 
-public class CanvasCuller : MonoBehaviour, CullingManager.ICullingEventHandler
+// Visibility is evaluated only for this mod's canvases. The game's culling
+// managers retain their own camera, distance bands and registrations.
+public sealed class CanvasCuller : MonoBehaviour
 {
-	private void Awake()
-	{
-		canvas = transform.GetComponent<Canvas>();
-	}
+    private static readonly Plane[] Planes = new Plane[6];
+    private static Camera? cachedCamera;
+    private static int cachedFrame = -1;
+    private Canvas canvas = null!;
+    public float radius = 30f;
 
-	private void OnEnable()
-	{
-		CullingManager.Token cullingToken = _cullingToken;
-		if (cullingToken != null)
-		{
-			cullingToken.Dispose();
-		}
+    private void Awake() => canvas = GetComponent<Canvas>();
 
-		CullingManager cullingManager = FindObjectOfType<CullingManager>();
-		if (cullingManager == null)
-		{
-			GameObject go = new GameObject("CanvasCullingManager");
-			cullingManager = go.AddComponent<CullingManager>();
-			cullingManager.Configure("canvas", new[] { float.PositiveInfinity });
-		}  
-		_cullingToken = cullingManager.AddSphere(transform, radius, this);
-		_cullingToken.RegisterFixedUpdate(transform);
-		var camera = MapBuilder.Shared.mapCamera;
-		cullingManager._cullingGroup.targetCamera = camera;
-		cullingManager._cullingGroup.SetDistanceReferencePoint(camera.transform);
-		return;
-	}
+    private void LateUpdate()
+    {
+        if (canvas == null) return;
+        var camera = MapBuilder.Shared?.mapCamera;
+        if (camera == null)
+        {
+            canvas.enabled = true;
+            return;
+        }
+        if (cachedFrame != Time.frameCount || cachedCamera != camera)
+        {
+            GeometryUtility.CalculateFrustumPlanes(camera, Planes);
+            cachedFrame = Time.frameCount;
+            cachedCamera = camera;
+        }
+        canvas.enabled = GeometryUtility.TestPlanesAABB(Planes,
+            new Bounds(transform.position, Vector3.one * (Mathf.Max(0f, radius) * 2f)));
+    }
 
-	private void OnDisable()
-	{
-		_cullingToken.Dispose();
-		_cullingToken = null;
-	}
+    private void OnDisable()
+    {
+        if (canvas != null) canvas.enabled = true;
+        cachedCamera = null;
+        cachedFrame = -1;
+    }
 
-	public void CullingSphereStateChanged(bool isVisible, int distanceBand)
-	{
-		CanvasCuller.CullingState cullingState = (isVisible ? CanvasCuller.CullingState.Visible : CanvasCuller.CullingState.NotVisible);
-		if (cullingState == _cullingState)
-		{
-			return;
-		}
-		_cullingState = cullingState;
-		bool flag = _cullingState == CanvasCuller.CullingState.Visible;
-		canvas.enabled = flag;
-	}
-
-	public void RequestUpdateCullingPosition()
-	{
-		_cullingToken.UpdatePosition(transform);
-	}
-
-	private CullingManager.Token _cullingToken;
-
-	private CanvasCuller.CullingState _cullingState;
-
-	private Canvas canvas;
-
-	public float radius = 30f;
-
-	private enum CullingState
-	{
-		Unknown,
-		Visible,
-		NotVisible
-	}
+    public void RequestUpdateCullingPosition() => cachedFrame = -1;
 }
