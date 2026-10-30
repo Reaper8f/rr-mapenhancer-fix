@@ -1,4 +1,4 @@
-using MapEnhancer.UMM;
+using MapEnhancer.Native;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,8 +10,8 @@ namespace MapEnhancer
 {
 	public class ResizeNotifier : MonoBehaviour
 	{
-		private RectTransform _rectTransform;
-		public event Action<RectTransform> RectTransformDimensionsChanged;
+		private RectTransform? _rectTransform;
+		public event Action<RectTransform>? RectTransformDimensionsChanged;
 
 		void Awake()
 		{
@@ -21,7 +21,7 @@ namespace MapEnhancer
 		void OnRectTransformDimensionsChange()
 		{
 			Loader.LogDebug("RectTransformDimensionsChange fired on " + this.name);
-			if (RectTransformDimensionsChanged != null)
+			if (_rectTransform != null && RectTransformDimensionsChanged != null)
 			{
 				RectTransformDimensionsChanged(_rectTransform);
 			}

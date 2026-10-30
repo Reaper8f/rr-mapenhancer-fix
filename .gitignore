@@ -414,3 +414,5 @@ railroader.json
 build.bat
 
 Temp
+!Directory.Build.props
+!tests/*.md

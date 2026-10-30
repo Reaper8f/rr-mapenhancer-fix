@@ -1,4 +1,5 @@
 using UI.Common;
+using UI.Windows;
 using UI.Map;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -11,17 +12,21 @@ namespace MapEnhancer
 	public class MapResizer : PanelResizer, IPointerDownHandler, IPointerUpHandler, IEventSystemHandler, IDragHandler
 	{
 	private Vector2 originalSize;
+    private Vector2 restorePosition, restoreSize;
 	private float aspect;
-	private Window window;
-	private MapWindow mapWindow;
-	private AspectRatioFitter aspectRatioFitter;
-	private ResizeNotifier notifier;
+	private Window? window;
+	private MapWindow? mapWindow;
+	private AspectRatioFitter? aspectRatioFitter;
+	private ResizeNotifier? notifier;
 	private Vector2 windowMargins;
-	private Camera mapCamera;
-	private Canvas canvas;
+	private Camera? mapCamera;
+	private Canvas? canvas;
 	Vector2 largeWindowPos;
 	Vector2 largeWindowSize;
 	private bool isLarge;
+    private int originalTextureWidth, originalTextureHeight, originalAntiAliasing;
+    private float originalCameraAspect;
+    private bool hasOriginalWindowState;
 	private Vector2 defaultSize; // The default/normal size (from WindowSizeMin setting)
 
 	public static MapResizer Create()
@@ -42,10 +47,26 @@ namespace MapEnhancer
 			base.Awake();
 
 			window = GetComponentInParent<Window>();
-			mapWindow = GetComponentInParent<MapWindow>();
-			transform.gameObject.SetActive(window.IsShown);
-			mapCamera = MapBuilder.Shared.mapCamera;
-			canvas = GetComponentInParent<Canvas>().rootCanvas;
+            mapWindow = GetComponentInParent<MapWindow>();
+            mapCamera = MapBuilder.Shared.mapCamera;
+            var parentCanvas = GetComponentInParent<Canvas>();
+            if (window == null || mapWindow == null || mapCamera == null || parentCanvas == null)
+            {
+                enabled = false;
+                return;
+            }
+            canvas = parentCanvas.rootCanvas;
+            if (canvas == null)
+            {
+                enabled = false;
+                return;
+            }
+            restorePosition = window.RectTransform.anchoredPosition; restoreSize = window.RectTransform.sizeDelta;
+            hasOriginalWindowState = true;
+            transform.gameObject.SetActive(window.IsShown);
+            originalTextureWidth = mapWindow._renderTexture.width; originalTextureHeight = mapWindow._renderTexture.height;
+            originalAntiAliasing = mapWindow._renderTexture.antiAliasing; originalCameraAspect = mapCamera.aspect;
+
 
 			// Use the window's InitialContentSize which is the vanilla size scaled by UI settings
 			// This respects screen resolution and UI scale from game settings
@@ -58,7 +79,7 @@ namespace MapEnhancer
 
 			// Reset to default size on startup
 			_windowRectTransform.sizeDelta = defaultSize;
-			
+
 			// Allow users to resize down to 50% of the default size for more flexibility
 			// This gives extra room for users who want a very small map window
 			var absoluteMinSize = defaultSize * 0.5f;
@@ -75,12 +96,13 @@ namespace MapEnhancer
 
 		void OnEnable()
 		{
+            if (window == null) return;
 			var windowRectTransform = window._rectTransform;
 			var parentRectTransform = _windowRectTransform.parent.GetComponent<RectTransform>();
-			if (windowRectTransform.sizeDelta.x > parentRectTransform.sizeDelta.x || windowRectTransform.sizeDelta.y > parentRectTransform.sizeDelta.y)
-				windowRectTransform.sizeDelta = parentRectTransform.sizeDelta;
+			if (windowRectTransform.sizeDelta.x > parentRectTransform.rect.size.x || windowRectTransform.sizeDelta.y > parentRectTransform.rect.size.y)
+				windowRectTransform.sizeDelta = parentRectTransform.rect.size;
 		}
-		
+
 	new public void OnPointerDown(PointerEventData data)
 	{
 		UpdateWindowSize();
@@ -91,7 +113,7 @@ namespace MapEnhancer
 	{
 		// Call base class to handle the actual resize logic
 		base.OnDrag(data);
-		
+
 		// Update render texture during drag to prevent blur/pixelation
 		AdjustRenderTexture();
 	}
@@ -100,17 +122,18 @@ namespace MapEnhancer
 	{
 		// Call base class to handle pointer up logic
 		base.OnPointerUp(data);
-		
+
 		if (isLarge)
 			largeWindowSize = _windowRectTransform.sizeDelta;
-		
+
 		// Final render texture update after drag completes
 		AdjustRenderTexture();
 	}
 		void UpdateWindowSize()
 		{
+            if (aspectRatioFitter == null) return;
 			Rect canvasRect = _windowRectTransform.parent.GetComponent<RectTransform>().rect;
-			
+
 			maxSize = new Vector2(canvasRect.max.x - _windowRectTransform.localPosition.x,
 								  _windowRectTransform.localPosition.y - canvasRect.min.y);
 
@@ -135,6 +158,7 @@ namespace MapEnhancer
 
 		private void AdjustRenderTexture()
 		{
+            if (mapWindow == null || mapCamera == null || canvas == null) return;
 			RenderTexture rt = mapWindow._renderTexture;
 			var height = (int)Mathf.Round(canvas.renderingDisplaySize.y - windowMargins.y);
 			var width = (int)Mathf.Round(canvas.renderingDisplaySize.y * aspect - windowMargins.x);
@@ -149,14 +173,16 @@ namespace MapEnhancer
 		}
 
 		private void CleanupRenderTexture()
-		{
-			Rect rect = window.contentRectTransform.rect;
-			RenderTexture rt = mapWindow._renderTexture;
-			rt.Release();
-			rt.width = (int)rect.width;
-			rt.height = (int)rect.height;
-			rt.antiAliasing = 1;
-		}
+        {
+            if (mapWindow == null || mapWindow._renderTexture == null || originalTextureWidth <= 0) return;
+            var texture = mapWindow._renderTexture;
+            texture.Release();
+            texture.width = originalTextureWidth;
+            texture.height = originalTextureHeight;
+            texture.antiAliasing = originalAntiAliasing;
+            texture.Create();
+            if (mapCamera != null) mapCamera.aspect = originalCameraAspect;
+        }
 
 		private void OnRectCanvasTransformChanged(RectTransform transform)
 		{
@@ -176,10 +202,10 @@ namespace MapEnhancer
 
 	public void SetMinimumSize(float size)
 	{
-		if (window == null) return;
+		if (window == null || !hasOriginalWindowState) return;
 		defaultSize = originalSize * (size/800f);
 		minSize = defaultSize; // Keep minSize for compatibility
-		
+
 		// Update absolute minimum to 50% of new default size
 		base.minSize = defaultSize * 0.5f;
 
@@ -206,7 +232,8 @@ namespace MapEnhancer
 				return;
 			}
 
-			var isShown = window!.IsShown;
+			if (!hasOriginalWindowState) return;
+			var isShown = window.IsShown;
 			if (!isShown)
 			{
 				window.ShowWindow();
@@ -235,10 +262,13 @@ namespace MapEnhancer
 		void OnDestroy()
 		{
 			if (aspectRatioFitter) DestroyImmediate(aspectRatioFitter);
-			window._rectTransform.anchoredPosition = Vector2.zero;
-			window._rectTransform.sizeDelta = originalSize;
+			if (window != null && hasOriginalWindowState) { window._rectTransform.anchoredPosition = restorePosition; window._rectTransform.sizeDelta = restoreSize; }
 
-			if (notifier) DestroyImmediate(notifier);
+			if (notifier != null)
+            {
+                notifier.RectTransformDimensionsChanged -= OnRectCanvasTransformChanged;
+                DestroyImmediate(notifier);
+            }
 			CleanupRenderTexture();
 		}
 	}

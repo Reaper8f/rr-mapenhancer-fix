@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IndustryMenuSource Condition="'$(IndustryMenuSource)' == ''">../../MapEnhancer/OptionalIndustryMenu.cs</IndustryMenuSource>
+    <IndustryClickSource Condition="'$(IndustryClickSource)' == ''">../../MapEnhancer/IndustryMapClick.cs</IndustryClickSource>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(IndustryMenuSource)" Link="OptionalIndustryMenu.cs" />
+    <Compile Include="$(IndustryClickSource)" Link="IndustryMapClick.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="ContractDoubles.cs" />
+  </ItemGroup>
+</Project>

@@ -4,79 +4,13 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
-using UnityModManagerNet;
 
-namespace MapEnhancer.UMM;
 
-#if DEBUG
-[EnableReloading]
-#endif
-public static class Loader
+namespace MapEnhancer.Native;
+
+public static partial class Loader
 {
-	public static UnityModManager.ModEntry ModEntry { get; private set; }
-	public static Harmony HarmonyInstance { get; private set; }
-	public static MapEnhancer Instance { get; private set; }
-
-	public static MapEnhancerSettings Settings;
-
-	private static bool Load(UnityModManager.ModEntry modEntry)
-	{
-		if (ModEntry != null || Instance != null)
-		{
-			modEntry.Logger.Warning("MapEnhancer is already loaded!");
-			return false;
-		}
-
-		ModEntry = modEntry;
-		Settings = UnityModManager.ModSettings.Load<MapEnhancerSettings>(modEntry);
-		ModEntry.OnUnload = Unload;
-		ModEntry.OnToggle = OnToggle;
-		ModEntry.OnGUI = OnGUI;
-		ModEntry.OnSaveGUI = Settings.Save;
-
-		HarmonyInstance = new Harmony(modEntry.Info.Id);
-		//Harmony.DEBUG = true;
-		return true;
-	}
-
-	public static bool OnToggle(UnityModManager.ModEntry modEntry, bool value)
-	{
-		if (value)
-		{
-			try
-			{
-				HarmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
-				var go = new GameObject("[MapEnhancer]");
-				Instance = go.AddComponent<MapEnhancer>();
-				UnityEngine.Object.DontDestroyOnLoad(go);
-				Instance.Settings = Settings;
-			}
-			catch (Exception ex)
-			{
-				modEntry.Logger.LogException($"Failed to load {modEntry.Info.DisplayName}:", ex);
-				HarmonyInstance?.UnpatchAll(modEntry.Info.Id);
-				if (Instance != null) UnityEngine.Object.DestroyImmediate(Instance.gameObject);
-				Instance = null;
-				return false;
-			}
-		}
-		else
-		{
-			HarmonyInstance.UnpatchAll(modEntry.Info.Id);
-			if (Instance != null) UnityEngine.Object.DestroyImmediate(Instance.gameObject);
-			Instance = null;
-		}
-
-		return true;
-	}
-
-	private static bool Unload(UnityModManager.ModEntry modEntry)
-	{
-		
-		return true;
-	}
-
-	public class MapEnhancerSettings : UnityModManager.ModSettings
+    public class MapEnhancerSettings
 	{
 		public KeyBinding mapToggle = new KeyBinding() { keyCode = KeyCode.Z};
 		public KeyBinding mapFollow = new KeyBinding() { modifiers = 1, keyCode = KeyCode.Z };
@@ -121,11 +55,11 @@ public static class Loader
 	public bool EnableIndustryAreaColors = true; // Color industrial tracks by their area colors
 	public bool EnableModdedSpawnPoints = false; // Show additional locations from mods in location dropdown (auto-discovers all mods with spawn-points.json)
 	public bool ShowAdvancedMapWindowSettings = true; // Show optional settings (switch reset + grade toggles) in in-game map window
-	
+
 	// Turntable marker settings
 	public bool ShowTurntableMarkers = true; // Show clickable markers on turntables
 	public bool EnableTurntableControl = true; // Enable turntable rotation from map (network-synced for multiplayer)
-	public bool CheckTurntableClearance = true; // Block rotation when the table is fouled by rolling stock
+
 	public Color TurntableMarkerColor = new Color(0.8f, 0.5f, 0.2f, 0.4f); // Orange with transparency
 	public bool ShowRoadCrossingMarkers = true; // Show road crossing markers on the map
 	public float CrossingMarkerScale = 0.3f; // Scale for road crossing markers on map
@@ -134,7 +68,9 @@ public static class Loader
 	public bool ShowGradeOnHover = true;
 	public bool ShowGradeMarkers = false;
 	public float GradeMarkerMinIntensity = 1.0f;
-	public bool EnableGradeColorOverlay = false;
+	public TrackOverlayMode Overlay = TrackOverlayMode.Routes;
+    [Newtonsoft.Json.JsonIgnore]
+    public bool EnableGradeColorOverlay { get => Overlay == TrackOverlayMode.Grade; set { if (value) Overlay = TrackOverlayMode.Grade; else if (Overlay == TrackOverlayMode.Grade) Overlay = TrackOverlayMode.Routes; } }
 
 	public static readonly Color GradeColorFlatOrig = new Color(0.267f, 0.467f, 0.800f, 1f); // Blue
 	public static readonly Color GradeColor0to1Orig = new Color(0.133f, 0.733f, 0.267f, 1f); // Green
@@ -162,18 +98,19 @@ public static class Loader
 
 	// Tooltip customization removed: tooltips use plain formatting
 
-	public override void Save(UnityModManager.ModEntry modEntry)
+	public void Save()
 		{
-			Save(this, modEntry);
+			Loader.SaveSettings();
 		}
 
 		public void OnChange()
 		{
 			Instance?.OnSettingsChanged();
+            Save();
 		}
 	}
 
-	private static void OnGUI(UnityModManager.ModEntry modEntry)
+	internal static void DrawSettings()
 	{
 		bool changed = false;
 
@@ -188,7 +125,7 @@ public static class Loader
 					changed = true;
 				}
 			}
-			
+
 		using (new GUILayout.HorizontalScope())
 		{
 			var enableControl = GUILayout.Toggle(Settings.EnableTurntableControl, "Enable Turntable Control from Map (network-synced)");
@@ -203,31 +140,11 @@ public static class Loader
 				changed = true;
 			}
 		}
-		
+
 		if (Settings.EnableTurntableControl)
 		{
 			GUILayout.Label("  ℹ️ Turntable rotations are synchronized to all players in multiplayer.", GUILayout.ExpandWidth(true));
 
-			using (new GUILayout.HorizontalScope())
-			{
-				GUILayout.Space(20);
-				var checkClearance = GUILayout.Toggle(Settings.CheckTurntableClearance, "Check Turntable Clearance/Fouling Before Rotation");
-				if (Settings.CheckTurntableClearance != checkClearance)
-				{
-					Settings.CheckTurntableClearance = checkClearance;
-					changed = true;
-				}
-			}
-
-			if (Settings.CheckTurntableClearance)
-			{
-				GUILayout.Label("  ℹ️ Rotation is blocked when the table is fouled or a car overlaps the table boundary.", GUILayout.ExpandWidth(true));
-			}
-			else
-			{
-				GUILayout.Label("  ℹ️ Clearance checks are disabled. Use carefully if rolling stock is close to the table.", GUILayout.ExpandWidth(true));
-			}
-			
 			using (new GUILayout.HorizontalScope())
 			{
 				GUILayout.Space(20);
@@ -256,7 +173,7 @@ public static class Loader
 					{
 						GUILayout.Space(20);
 						var crossingScale = (float)Math.Round(
-							GUILayout.HorizontalSlider(Settings.CrossingMarkerScale, 0.1f, 1.0f, GUILayout.Width(UnityModManager.UI.Scale(160))),
+							GUILayout.HorizontalSlider(Settings.CrossingMarkerScale, 0.1f, 1.0f, GUILayout.Width(SettingsUi.Scale(160))),
 							2,
 							MidpointRounding.AwayFromZero);
 						GUILayout.Label($"Crossing Marker Scale: {crossingScale}", GUILayout.ExpandWidth(true));
@@ -271,18 +188,18 @@ public static class Loader
 		else
 		{
 			GUILayout.Label("  ℹ️ Turntable control from map is disabled. Use in-game turntable UI instead.", GUILayout.ExpandWidth(true));
-		}			GUILayout.Space(UnityModManager.UI.Scale(5));
+		}			GUILayout.Space(SettingsUi.Scale(5));
 			GUILayout.Label("Toggle Map Size Keybind");
-			UnityModManager.UI.DrawKeybindingSmart(Settings.mapToggle, "Toggle Map Size", null, GUILayout.Width(UnityModManager.UI.Scale(200)));
+			SettingsUi.DrawKeybindingSmart(Settings.mapToggle, "Toggle Map Size", null, GUILayout.Width(SettingsUi.Scale(200)));
 			GUILayout.Label("Re-center Map on Player Keybind");
-			UnityModManager.UI.DrawKeybindingSmart(Settings.mapRecenter, "Re-center map to currently selected camera", null, GUILayout.Width(UnityModManager.UI.Scale(200)));
+			SettingsUi.DrawKeybindingSmart(Settings.mapRecenter, "Re-center map to currently selected camera", null, GUILayout.Width(SettingsUi.Scale(200)));
 			GUILayout.Label("Follow Mode Keybind");
-			UnityModManager.UI.DrawKeybindingSmart(Settings.mapFollow, "Follow Mode will keep map focuesed on last selected loco", null, GUILayout.Width(UnityModManager.UI.Scale(200)));
+			SettingsUi.DrawKeybindingSmart(Settings.mapFollow, "Follow Mode will keep map focuesed on last selected loco", null, GUILayout.Width(SettingsUi.Scale(200)));
 
 			GUILayout.Label("Docked Map Window Size");
 			using (new GUILayout.HorizontalScope())
 			{
-				var zoomMin = (float)Math.Round(GUILayout.HorizontalSlider(Settings.WindowSizeMin, 200f, 800f, GUILayout.Width(UnityModManager.UI.Scale(200))) / 200, 0, MidpointRounding.AwayFromZero) * 200f;
+				var zoomMin = (float)Math.Round(GUILayout.HorizontalSlider(Settings.WindowSizeMin, 200f, 800f, GUILayout.Width(SettingsUi.Scale(200))) / 200, 0, MidpointRounding.AwayFromZero) * 200f;
 				GUILayout.Label(zoomMin.ToString(), GUILayout.ExpandWidth(true));
 				if (Settings.WindowSizeMin != zoomMin)
 				{
@@ -291,11 +208,11 @@ public static class Loader
 				}
 			}
 
-			GUILayout.Space(UnityModManager.UI.Scale(5));
+			GUILayout.Space(SettingsUi.Scale(5));
 			GUILayout.Label("Map Zoom Min (lower = more zoom)");
 			using (new GUILayout.HorizontalScope())
 			{
-				var zoomMin = (float)Math.Round(GUILayout.HorizontalSlider(Settings.MapZoomMin, 50f, 100f, GUILayout.Width(UnityModManager.UI.Scale(200))), 0, MidpointRounding.AwayFromZero);
+				var zoomMin = (float)Math.Round(GUILayout.HorizontalSlider(Settings.MapZoomMin, 50f, 100f, GUILayout.Width(SettingsUi.Scale(200))), 0, MidpointRounding.AwayFromZero);
 				GUILayout.Label(zoomMin.ToString(), GUILayout.ExpandWidth(true));
 				if (Settings.MapZoomMin != zoomMin)
 				{
@@ -307,7 +224,7 @@ public static class Loader
 			GUILayout.Label("Map Zoom Max (higher = more zoom)");
 			using (new GUILayout.HorizontalScope())
 			{
-				var zoomMax = (float)Math.Round(GUILayout.HorizontalSlider(Settings.MapZoomMax, 5000f, 15000f, GUILayout.Width(UnityModManager.UI.Scale(200))), 0, MidpointRounding.AwayFromZero);
+				var zoomMax = (float)Math.Round(GUILayout.HorizontalSlider(Settings.MapZoomMax, 5000f, 15000f, GUILayout.Width(SettingsUi.Scale(200))), 0, MidpointRounding.AwayFromZero);
 				GUILayout.Label(zoomMax.ToString(), GUILayout.ExpandWidth(true));
 				if (Settings.MapZoomMax != zoomMax)
 				{
@@ -316,11 +233,11 @@ public static class Loader
 				}
 			}
 
-			GUILayout.Space(UnityModManager.UI.Scale(5));
+			GUILayout.Space(SettingsUi.Scale(5));
 			GUILayout.Label("Fusee Marker Scale");
 			using (new GUILayout.HorizontalScope())
 			{
-				var fs = (float)Math.Round(GUILayout.HorizontalSlider(Settings.FlareScale, 0.1f, 1f, GUILayout.Width(UnityModManager.UI.Scale(200))), 1, MidpointRounding.AwayFromZero);
+				var fs = (float)Math.Round(GUILayout.HorizontalSlider(Settings.FlareScale, 0.1f, 1f, GUILayout.Width(SettingsUi.Scale(200))), 1, MidpointRounding.AwayFromZero);
 				GUILayout.Label(fs.ToString(), GUILayout.ExpandWidth(true));
 				if (Settings.FlareScale != fs)
 				{
@@ -332,7 +249,7 @@ public static class Loader
 			GUILayout.Label("Junction Marker Scale");
 			using (new GUILayout.HorizontalScope())
 			{
-				var ms = (float)Math.Round(GUILayout.HorizontalSlider(Settings.JunctionMarkerScale, 0.50f, 1f, GUILayout.Width(UnityModManager.UI.Scale(200))), 2, MidpointRounding.AwayFromZero);
+				var ms = (float)Math.Round(GUILayout.HorizontalSlider(Settings.JunctionMarkerScale, 0.50f, 1f, GUILayout.Width(SettingsUi.Scale(200))), 2, MidpointRounding.AwayFromZero);
 				GUILayout.Label(ms.ToString(), GUILayout.ExpandWidth(true));
 				if (Settings.JunctionMarkerScale != ms)
 				{
@@ -341,11 +258,11 @@ public static class Loader
 				}
 			}
 
-			GUILayout.Space(UnityModManager.UI.Scale(5));
+			GUILayout.Space(SettingsUi.Scale(5));
 			GUILayout.Label("Junction Non-Mainline Marker Cutoff");
 			using (new GUILayout.HorizontalScope())
 			{
-				var co = (float)Math.Round(GUILayout.HorizontalSlider(Settings.MarkerCutoff, 0.01f, 1f, GUILayout.Width(UnityModManager.UI.Scale(200))), 2, MidpointRounding.AwayFromZero);
+				var co = (float)Math.Round(GUILayout.HorizontalSlider(Settings.MarkerCutoff, 0.01f, 1f, GUILayout.Width(SettingsUi.Scale(200))), 2, MidpointRounding.AwayFromZero);
 				GUILayout.Label(co.ToString(), GUILayout.ExpandWidth(true));
 				if (Settings.MarkerCutoff != co)
 				{
@@ -354,11 +271,11 @@ public static class Loader
 				}
 			}
 
-			GUILayout.Space(UnityModManager.UI.Scale(5));
+			GUILayout.Space(SettingsUi.Scale(5));
 			GUILayout.Label("Track Line Thickness");
 			using (new GUILayout.HorizontalScope())
 			{
-				var thickness = (float)Math.Round(GUILayout.HorizontalSlider(Settings.TrackLineThickness, 0.5f, 2f, GUILayout.Width(UnityModManager.UI.Scale(200))) * 4, 0, MidpointRounding.AwayFromZero) / 4;
+				var thickness = (float)Math.Round(GUILayout.HorizontalSlider(Settings.TrackLineThickness, 0.5f, 2f, GUILayout.Width(SettingsUi.Scale(200))) * 4, 0, MidpointRounding.AwayFromZero) / 4;
 				GUILayout.Label(thickness.ToString(), GUILayout.ExpandWidth(true));
 				if (Settings.TrackLineThickness != thickness)
 				{
@@ -367,13 +284,13 @@ public static class Loader
 				}
 			}
 
-			GUILayout.Space(UnityModManager.UI.Scale(5));
+			GUILayout.Space(SettingsUi.Scale(5));
 			GUILayout.Label("Map Window Antialiasing");
 			using (new GUILayout.HorizontalScope())
 			{
 				var values = (int[])Enum.GetValues(Settings.MSAA.GetType());
 				int msaaIndex = Array.IndexOf(values, Settings.MSAA);
-				if (UnityModManager.UI.PopupToggleGroup(ref msaaIndex, Enum.GetNames(Settings.MSAA.GetType()), null, GUILayout.Width(UnityModManager.UI.Scale(100))))
+				if (SettingsUi.PopupToggleGroup(ref msaaIndex, Enum.GetNames(Settings.MSAA.GetType()), null, GUILayout.Width(SettingsUi.Scale(100))))
 				{
 					if (values[msaaIndex] != (int)Settings.MSAA)
 					{
@@ -383,7 +300,7 @@ public static class Loader
 				}
 			}
 
-			GUILayout.Space(UnityModManager.UI.Scale(5));
+			GUILayout.Space(SettingsUi.Scale(5));
 			GUILayout.Label("Mainline Track Color (⚠️ Alpha not supported for tracks)");
 			if (DrawColor(ref Settings.TrackColorMainline)) changed = true;
 			GUILayout.Label("Branch/Yard Track Color (⚠️ Alpha not supported for tracks)");
@@ -393,14 +310,14 @@ public static class Loader
 			GUILayout.Label("Unavailable Track Color (⚠️ Alpha not supported for tracks)");
 			if (DrawColor(ref Settings.TrackColorUnavailable)) changed = true;
 
-			GUILayout.Space(UnityModManager.UI.Scale(10));
+			GUILayout.Space(SettingsUi.Scale(10));
 			GUILayout.Label("--- Optional Features ---", GUILayout.ExpandWidth(true));
-			
+
 			// Visual-only mode is now permanently enabled (UI toggle disabled)
 			// TODO: Remove all non-visual-only mode code when ready to clean up
-			GUILayout.Space(UnityModManager.UI.Scale(5));
+			GUILayout.Space(SettingsUi.Scale(5));
 			GUILayout.Label("ℹ️ Visual-Only Track Coloring: ENABLED (track classes remain unchanged)", GUILayout.ExpandWidth(true));
-			
+
 			/* DISABLED - Visual-only mode is now permanent
 			using (new GUILayout.HorizontalScope())
 			{
@@ -417,7 +334,7 @@ public static class Loader
 			}
 			*/
 
-			GUILayout.Space(UnityModManager.UI.Scale(5));
+			GUILayout.Space(SettingsUi.Scale(5));
 			using (new GUILayout.HorizontalScope())
 			{
 				var paxTracking = GUILayout.Toggle(Settings.EnablePassengerStopTracking, "Enable Passenger Stop Tracking");
@@ -434,7 +351,7 @@ public static class Loader
 				if (DrawColor(ref Settings.TrackColorPax)) changed = true;
 			}
 
-			GUILayout.Space(UnityModManager.UI.Scale(5));
+			GUILayout.Space(SettingsUi.Scale(5));
 			using (new GUILayout.HorizontalScope())
 			{
 				var industryColors = GUILayout.Toggle(Settings.EnableIndustryAreaColors, "Enable Industry Area Colors for Industrial Tracks");
@@ -455,7 +372,7 @@ public static class Loader
 				GUILayout.Label("  ℹ️ Industrial tracks will use the default industrial color.", GUILayout.ExpandWidth(true));
 			}
 
-		GUILayout.Space(UnityModManager.UI.Scale(5));
+		GUILayout.Space(SettingsUi.Scale(5));
 		using (new GUILayout.HorizontalScope())
 		{
 			var moddedSpawnPoints = GUILayout.Toggle(Settings.EnableModdedSpawnPoints, "Enable Additional Locations from Mods");
@@ -474,7 +391,7 @@ public static class Loader
 			GUILayout.Label("  ℹ️ Only vanilla locations will be shown in the teleport dropdown.", GUILayout.ExpandWidth(true));
 		}
 
-		GUILayout.Space(UnityModManager.UI.Scale(5));
+		GUILayout.Space(SettingsUi.Scale(5));
 		using (new GUILayout.HorizontalScope())
 		{
 			var showMapWindowAdvanced = GUILayout.Toggle(Settings.ShowAdvancedMapWindowSettings, "Show Advanced Controls in In-Game Map Window");
@@ -486,14 +403,14 @@ public static class Loader
 		}
 		if (Settings.ShowAdvancedMapWindowSettings)
 		{
-			GUILayout.Label("  ℹ️ Shows Switch Reset, Hover Grade, Grade Markers, and Color Overlay controls on the in-game map.", GUILayout.ExpandWidth(true));
+			GUILayout.Label("  ℹ️ Shows Switch Reset, Hover Grade, and Grade Markers controls on the in-game map.", GUILayout.ExpandWidth(true));
 		}
 		else
 		{
 			GUILayout.Label("  ℹ️ Hides optional map controls to keep the in-game map panel minimal.", GUILayout.ExpandWidth(true));
 		}
 
-			GUILayout.Space(UnityModManager.UI.Scale(10));
+			GUILayout.Space(SettingsUi.Scale(10));
 			GUILayout.Label("--- Debug Logging ---", GUILayout.ExpandWidth(true));
 			using (new GUILayout.HorizontalScope())
 			{
@@ -506,10 +423,10 @@ public static class Loader
 			}
 			GUILayout.Label("  ℹ️ Keeps verbose diagnostics out of Player.log unless you are actively debugging.", GUILayout.ExpandWidth(true));
 
-		GUILayout.Space(UnityModManager.UI.Scale(10));
+		GUILayout.Space(SettingsUi.Scale(10));
 		GUILayout.Label("--- Grade Indicators ---", GUILayout.ExpandWidth(true));
 
-		GUILayout.Space(UnityModManager.UI.Scale(5));
+		GUILayout.Space(SettingsUi.Scale(5));
 		using (new GUILayout.HorizontalScope())
 		{
 			var showHover = GUILayout.Toggle(Settings.ShowGradeOnHover, "Show Grade on Hover");
@@ -520,7 +437,7 @@ public static class Loader
 			}
 		}
 
-		GUILayout.Space(UnityModManager.UI.Scale(5));
+		GUILayout.Space(SettingsUi.Scale(5));
 		using (new GUILayout.HorizontalScope())
 		{
 			var showMarkers = GUILayout.Toggle(Settings.ShowGradeMarkers, "Show Grade Markers");
@@ -537,7 +454,7 @@ public static class Loader
 			{
 				GUILayout.Space(20);
 				var minIntensity = (float)Math.Round(
-					GUILayout.HorizontalSlider(Settings.GradeMarkerMinIntensity, 0.1f, 3.0f, GUILayout.Width(UnityModManager.UI.Scale(160))),
+					GUILayout.HorizontalSlider(Settings.GradeMarkerMinIntensity, 0.1f, 3.0f, GUILayout.Width(SettingsUi.Scale(160))),
 					2,
 					MidpointRounding.AwayFromZero);
 				GUILayout.Label($"Min Grade Marker Intensity: {minIntensity}%", GUILayout.ExpandWidth(true));
@@ -549,38 +466,35 @@ public static class Loader
 			}
 		}
 
-		GUILayout.Space(UnityModManager.UI.Scale(5));
+		GUILayout.Space(SettingsUi.Scale(5));
 		using (new GUILayout.HorizontalScope())
 		{
-			var enableOverlay = GUILayout.Toggle(Settings.EnableGradeColorOverlay, "Enable Grade Color Overlay");
-			if (Settings.EnableGradeColorOverlay != enableOverlay)
-			{
-				Settings.EnableGradeColorOverlay = enableOverlay;
-				changed = true;
-			}
-		}
+			var nextOverlay = (TrackOverlayMode)GUILayout.SelectionGrid((int)Settings.Overlay,
+                new[] { "Off", "Grade", "Track Class", "Track Condition", "Track Cleanliness" }, 2);
+            if (nextOverlay != Settings.Overlay) { Settings.Overlay = nextOverlay; changed = true; }
+        }
 
-		if (Settings.EnableGradeColorOverlay)
+        if (Settings.EnableGradeColorOverlay)
 		{
 			GUILayout.Label("Flat (< 0.1%) Grade Color");
 			if (DrawColor(ref Settings.GradeColorFlat)) changed = true;
-			
+
 			GUILayout.Label("0–1% Grade Color");
 			if (DrawColor(ref Settings.GradeColor0to1)) changed = true;
-			
+
 			GUILayout.Label("1–2% Grade Color");
 			if (DrawColor(ref Settings.GradeColor1to2)) changed = true;
-			
+
 			GUILayout.Label("2–3% Grade Color");
 			if (DrawColor(ref Settings.GradeColor2to3)) changed = true;
-			
+
 			GUILayout.Label("> 3% Grade Color");
 			if (DrawColor(ref Settings.GradeColorAbove3)) changed = true;
 		}
 
-		GUILayout.Space(UnityModManager.UI.Scale(10));
+		GUILayout.Space(SettingsUi.Scale(10));
 		GUILayout.Label("--- Train Hover Info ---", GUILayout.ExpandWidth(true));
-		GUILayout.Space(UnityModManager.UI.Scale(5));
+		GUILayout.Space(SettingsUi.Scale(5));
 		using (new GUILayout.HorizontalScope())
 		{
 			var showDetails = GUILayout.Toggle(Settings.ShowTrainHoverDetails, "Show Train Hover Details");
@@ -654,13 +568,13 @@ public static class Loader
 				}
 			}
 		}
-		
+
 		// Reset to Defaults button
-		GUILayout.Space(UnityModManager.UI.Scale(15));
+		GUILayout.Space(SettingsUi.Scale(15));
 		GUILayout.Label("--- Reset Settings ---", GUILayout.ExpandWidth(true));
-		GUILayout.Space(UnityModManager.UI.Scale(5));
-		
-		if (GUILayout.Button("Reset All Settings to Default", GUILayout.Width(UnityModManager.UI.Scale(300))))
+		GUILayout.Space(SettingsUi.Scale(5));
+
+		if (GUILayout.Button("Reset All Settings to Default", GUILayout.Width(SettingsUi.Scale(300))))
 		{
 			ResetSettingsToDefault();
 			changed = true;
@@ -674,15 +588,15 @@ public static class Loader
 			Settings.mapToggle = new KeyBinding() { keyCode = KeyCode.Z };
 			Settings.mapFollow = new KeyBinding() { modifiers = 1, keyCode = KeyCode.Z };
 			Settings.mapRecenter = new KeyBinding() { modifiers = 2, keyCode = KeyCode.Z };
-			
+
 			// Reset boolean settings
 			Settings.DoubleClick = false;
 			Settings.ShowTurntableMarkers = true;
 			Settings.EnableTurntableControl = true;
-			Settings.CheckTurntableClearance = true;
+
 			Settings.ShowRoadCrossingMarkers = true;
 			Settings.CrossingMarkerScale = 0.3f;
-			
+
 			// Reset scale and size settings
 			Settings.FlareScale = 0.6f;
 			Settings.JunctionMarkerScale = 0.6f;
@@ -692,7 +606,7 @@ public static class Loader
 			Settings.MapZoomMax = 10000f;
 			Settings.TrackLineThickness = 1.25f;
 			Settings.MSAA = MsaaQuality._4x;
-			
+
 			// Reset track colors
 			Settings.TrackColorMainline = MapEnhancerSettings.TrackColorMainlineOrig;
 			Settings.TrackColorBranch = MapEnhancerSettings.TrackColorBranchOrig;
@@ -700,14 +614,14 @@ public static class Loader
 			Settings.TrackColorUnavailable = MapEnhancerSettings.TrackColorUnavailableOrig;
 			Settings.TrackColorPax = MapEnhancerSettings.TrackColorPaxOrig;
 			Settings.TrackColorUnreachable = MapEnhancerSettings.TrackColorUnreachableOrig;
-			
+
 			// Reset feature toggles
 			Settings.UseVisualOnlyTrackColors = true;
 			Settings.EnablePassengerStopTracking = false;
 			Settings.EnableIndustryAreaColors = true;
 			Settings.EnableModdedSpawnPoints = false;
 			Settings.ShowAdvancedMapWindowSettings = true;
-			
+
 			// Reset turntable marker color
 			Settings.TurntableMarkerColor = new Color(0.8f, 0.5f, 0.2f, 0.4f);
 
@@ -715,7 +629,7 @@ public static class Loader
 			Settings.ShowGradeOnHover = true;
 			Settings.ShowGradeMarkers = false;
 			Settings.GradeMarkerMinIntensity = 1.0f;
-			Settings.EnableGradeColorOverlay = false;
+			Settings.Overlay = TrackOverlayMode.Routes;
 			Settings.GradeColorFlat = MapEnhancerSettings.GradeColorFlatOrig;
 			Settings.GradeColor0to1 = MapEnhancerSettings.GradeColor0to1Orig;
 			Settings.GradeColor1to2 = MapEnhancerSettings.GradeColor1to2Orig;
@@ -733,7 +647,7 @@ public static class Loader
 			Settings.ShowDestinations         = true;
 			Settings.ShowIndividualCarTooltip = true;
 			Settings.EnableDebugLogging       = false;
-			
+
 			Log("All settings have been reset to their default values.");
 		}
 
@@ -748,33 +662,33 @@ public static class Loader
 					using (new GUILayout.VerticalScope())
 					{
 						GUILayout.Label($"R: {color.r * 255f}");
-						using (new GUILayout.HorizontalScope(GUILayout.Width(UnityModManager.UI.Scale(133))))
+						using (new GUILayout.HorizontalScope(GUILayout.Width(SettingsUi.Scale(133))))
 						{
-							r = (int)GUILayout.HorizontalSlider(color.r * 255f, 0f, 255f, GUILayout.Width(UnityModManager.UI.Scale(128))) / 255f;
+							r = (int)GUILayout.HorizontalSlider(color.r * 255f, 0f, 255f, GUILayout.Width(SettingsUi.Scale(128))) / 255f;
 						}
 					}
 					using (new GUILayout.VerticalScope())
 					{
 						GUILayout.Label($"G: {color.g * 255f}");
-						using (new GUILayout.HorizontalScope(GUILayout.Width(UnityModManager.UI.Scale(133))))
+						using (new GUILayout.HorizontalScope(GUILayout.Width(SettingsUi.Scale(133))))
 						{
-							g = (int)GUILayout.HorizontalSlider(color.g * 255f, 0f, 255f, GUILayout.Width(UnityModManager.UI.Scale(128))) / 255f;
+							g = (int)GUILayout.HorizontalSlider(color.g * 255f, 0f, 255f, GUILayout.Width(SettingsUi.Scale(128))) / 255f;
 						}
 					}
 					using (new GUILayout.VerticalScope())
 					{
 						GUILayout.Label($"B: {color.b * 255f}");
-						using (new GUILayout.HorizontalScope(GUILayout.Width(UnityModManager.UI.Scale(133))))
+						using (new GUILayout.HorizontalScope(GUILayout.Width(SettingsUi.Scale(133))))
 						{
-							b = (int)GUILayout.HorizontalSlider(color.b * 255f, 0f, 255f, GUILayout.Width(UnityModManager.UI.Scale(128))) / 255f;
+							b = (int)GUILayout.HorizontalSlider(color.b * 255f, 0f, 255f, GUILayout.Width(SettingsUi.Scale(128))) / 255f;
 						}
 					}
 					using (new GUILayout.VerticalScope())
 					{
 						GUILayout.Label($"A: {color.a}");
-						using (new GUILayout.HorizontalScope(GUILayout.Width(UnityModManager.UI.Scale(133))))
+						using (new GUILayout.HorizontalScope(GUILayout.Width(SettingsUi.Scale(133))))
 						{
-							a = (float)Math.Round(GUILayout.HorizontalSlider(color.a, 0f, 1f, GUILayout.Width(UnityModManager.UI.Scale(128))), 2, MidpointRounding.AwayFromZero);
+							a = (float)Math.Round(GUILayout.HorizontalSlider(color.a, 0f, 1f, GUILayout.Width(SettingsUi.Scale(128))), 2, MidpointRounding.AwayFromZero);
 						}
 					}
 					if (color.r != r || color.g != g || color.b != b || color.a != a)
@@ -792,19 +706,19 @@ public static class Loader
 
 	public static void Log(string str)
 	{
-		ModEntry?.Logger.Log(str);
+		Context?.Log.Info(str);
 	}
 
 	public static void LogDebug(string str)
 	{
 		if (Settings?.EnableDebugLogging == true)
 		{
-			ModEntry?.Logger.Log(str);
+			Context?.Log.Info(str);
 		}
 #if DEBUG
 		else
 		{
-			ModEntry?.Logger.Log(str);
+			Context?.Log.Info(str);
 		}
 #endif
 	}

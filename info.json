@@ -1,14 +1,19 @@
 {
-	"Id": "MapEnhancer",
-	"DisplayName": "Map Enhancer",
-	"Author": "Vanguard",
-	"Contributors": [
-		"Reaper8f (Refizar08)"
-	],
-	"Version": "1.5.6",
-	"AssemblyName": "MapEnhancer.dll",
-	"EntryMethod": "MapEnhancer.UMM.Loader.Load",
-	"ManagerVersion": "0.32.4",
-	"HomePage": "https://www.nexusmods.com/railroader/mods/18/",
-	"Repository": "https://raw.githubusercontent.com/Refizar08/rr-mapenhancer-fix/master/repository.json"
+  "identifier": "vanguard/map-enhancer",
+  "version": "2.0.1",
+  "name": "Map Enhancer",
+  "author": "Vanguard; community contributors",
+  "license": "MIT",
+  "description": "Map controls, track colors, train details, junctions and turntables.",
+  "assemblies": [
+    "MapEnhancer.dll"
+  ],
+  "dependencies": {
+    "required": [
+      "rr/game ^0.6.0"
+    ],
+    "optional": [
+      "crzbp/a-pretty-convenient-menu"
+    ]
+  }
 }
